@@ -1,6 +1,14 @@
+<<<<<<< HEAD
 # Interactive Avatar NextJS Demo
 
 This is a sample project and was bootstrapped using [NextJS](https://nextjs.org/).
+=======
+# Studio Stream (Next.js)
+
+![Studio Stream UI Screenshot](./public/demo.png)
+
+This is a sample streaming UI built with [Next.js](https://nextjs.org/). It showcases a professional broadcast interface with a dark theme, glass surfaces, gradient accents, and a prominent video viewport.
+>>>>>>> 7b27993 (livekit)
 
 ## Getting Started FAQ
 
@@ -12,11 +20,32 @@ This is a sample project and was bootstrapped using [NextJS](https://nextjs.org/
 
 3. Run `npm install` (assuming you have npm installed. If not, please follow these instructions: https://docs.npmjs.com/downloading-and-installing-node-js-and-npm/)
 
-4. Enter your HeyGen Enterprise API Token in the `.env` file. Replace `HEYGEN_API_KEY` with your API key. This will allow the Client app to generate secure Access Tokens with which to create interactive sessions.
-
-   You can retrieve either the API Key by logging in to HeyGen and navigating to this page in your settings: [https://app.heygen.com/settings?from=&nav=Subscriptions%20%26%20API]. 
+4. Provide your streaming API token in the `.env` file as `STREAMING_API_KEY`. This allows the app to mint short‑lived access tokens for sessions.
 
 5. (Optional) If you would like to use the OpenAI features, enter your OpenAI Api Key in the `.env` file.
 
 6. Run `npm run dev`
 
+<<<<<<< HEAD
+=======
+### Starting sessions
+
+Make sure you’ve added your token to `.env` and run `npm run dev`. Click “Start Voice Chat” or “Start Text Chat” in the control dock to initiate a session. Use the right‑hand chat panel to review conversation history.
+
+### Preset avatars and default
+
+You can optionally configure a default avatar and a selectable list without changing code:
+
+- `NEXT_PUBLIC_DEFAULT_AVATAR_ID`: preselects an avatar ID for the Start button.
+- `NEXT_PUBLIC_PRESET_AVATARS`: JSON array of `{ name, avatar_id }` to show a dropdown, plus a "Custom Avatar ID" option.
+
+Example:
+
+```
+NEXT_PUBLIC_DEFAULT_AVATAR_ID=host_a_id
+NEXT_PUBLIC_PRESET_AVATARS=[
+  {"name":"Studio Host A","avatar_id":"host_a_id"},
+  {"name":"Studio Host B","avatar_id":"host_b_id"}
+]
+```
+>>>>>>> 7b27993 (livekit)

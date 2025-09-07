@@ -7,7 +7,11 @@ export const useInterrupt = () => {
 
   const interrupt = useCallback(() => {
     if (!avatarRef.current) return;
-    avatarRef.current.interrupt();
+    if (typeof avatarRef.current.interruptPersona === "function") {
+      avatarRef.current.interruptPersona();
+    } else if (typeof avatarRef.current.interrupt === "function") {
+      avatarRef.current.interrupt();
+    }
   }, [avatarRef]);
 
   return { interrupt };

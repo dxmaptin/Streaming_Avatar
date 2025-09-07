@@ -1,9 +1,12 @@
-import StreamingAvatar, {
-  ConnectionQuality,
-  StreamingTalkingMessageEvent,
-  UserTalkingMessageEvent,
-} from "@heygen/streaming-avatar";
 import React, { useRef, useState } from "react";
+
+// Provider-agnostic connection quality indicator used by the UI
+export enum ConnectionQuality {
+  UNKNOWN = "UNKNOWN",
+  EXCELLENT = "EXCELLENT",
+  GOOD = "GOOD",
+  POOR = "POOR",
+}
 
 export enum StreamingAvatarSessionState {
   INACTIVE = "inactive",
@@ -23,8 +26,11 @@ export interface Message {
 }
 
 type StreamingAvatarContextProps = {
-  avatarRef: React.MutableRefObject<StreamingAvatar | null>;
+  avatarRef: React.MutableRefObject<any | null>;
   basePath?: string;
+  promptPrefix?: string;
+  suppressNextUserMessage: boolean;
+  setSuppressNextUserMessage: (v: boolean) => void;
 
   isMuted: boolean;
   setIsMuted: (isMuted: boolean) => void;
@@ -37,18 +43,20 @@ type StreamingAvatarContextProps = {
   setSessionState: (sessionState: StreamingAvatarSessionState) => void;
   stream: MediaStream | null;
   setStream: (stream: MediaStream | null) => void;
+  micStream?: MediaStream | null;
+  setMicStream?: (stream: MediaStream | null) => void;
 
   messages: Message[];
   clearMessages: () => void;
   handleUserTalkingMessage: ({
     detail,
   }: {
-    detail: UserTalkingMessageEvent;
+    detail: { message: string };
   }) => void;
   handleStreamingTalkingMessage: ({
     detail,
   }: {
-    detail: StreamingTalkingMessageEvent;
+    detail: { message: string };
   }) => void;
   handleEndMessage: () => void;
 
@@ -66,6 +74,9 @@ type StreamingAvatarContextProps = {
 const StreamingAvatarContext = React.createContext<StreamingAvatarContextProps>(
   {
     avatarRef: { current: null },
+    promptPrefix: undefined,
+    suppressNextUserMessage: false,
+    setSuppressNextUserMessage: () => {},
     isMuted: true,
     setIsMuted: () => {},
     isVoiceChatLoading: false,
@@ -97,12 +108,15 @@ const useStreamingAvatarSessionState = () => {
     StreamingAvatarSessionState.INACTIVE,
   );
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [micStream, setMicStream] = useState<MediaStream | null>(null);
 
   return {
     sessionState,
     setSessionState,
     stream,
     setStream,
+    micStream,
+    setMicStream,
   };
 };
 
@@ -128,7 +142,7 @@ const useStreamingAvatarMessageState = () => {
   const handleUserTalkingMessage = ({
     detail,
   }: {
-    detail: UserTalkingMessageEvent;
+    detail: { message: string };
   }) => {
     if (currentSenderRef.current === MessageSender.CLIENT) {
       setMessages((prev) => [
@@ -154,7 +168,7 @@ const useStreamingAvatarMessageState = () => {
   const handleStreamingTalkingMessage = ({
     detail,
   }: {
-    detail: StreamingTalkingMessageEvent;
+    detail: { message: string };
   }) => {
     if (currentSenderRef.current === MessageSender.AVATAR) {
       setMessages((prev) => [
@@ -226,19 +240,24 @@ export const StreamingAvatarProvider = ({
   children: React.ReactNode;
   basePath?: string;
 }) => {
-  const avatarRef = React.useRef<StreamingAvatar>(null);
+  const avatarRef = React.useRef<any>(null);
   const voiceChatState = useStreamingAvatarVoiceChatState();
   const sessionState = useStreamingAvatarSessionState();
   const messageState = useStreamingAvatarMessageState();
   const listeningState = useStreamingAvatarListeningState();
   const talkingState = useStreamingAvatarTalkingState();
   const connectionQualityState = useStreamingAvatarConnectionQualityState();
+  const promptPrefix = process.env.NEXT_PUBLIC_PERSONA_PROMPT;
+  const [suppressNextUserMessage, setSuppressNextUserMessage] = React.useState(false);
 
   return (
     <StreamingAvatarContext.Provider
       value={{
         avatarRef,
         basePath,
+        promptPrefix,
+        suppressNextUserMessage,
+        setSuppressNextUserMessage,
         ...voiceChatState,
         ...sessionState,
         ...messageState,

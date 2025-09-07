@@ -8,7 +8,7 @@ import { useInterrupt } from "../logic/useInterrupt";
 import { AudioInput } from "./AudioInput";
 import { TextInput } from "./TextInput";
 
-export const AvatarControls: React.FC = () => {
+export const AvatarControls: React.FC<{ roomRef: React.RefObject<any> }> = ({ roomRef }) => {
   const {
     isVoiceChatLoading,
     isVoiceChatActive,
@@ -20,7 +20,7 @@ export const AvatarControls: React.FC = () => {
   return (
     <div className="flex flex-col gap-3 relative w-full items-center">
       <ToggleGroup
-        className={`bg-zinc-700 rounded-lg p-1 ${isVoiceChatLoading ? "opacity-50" : ""}`}
+        className={`glass rounded-xl p-1 border border-white/10 ${isVoiceChatLoading ? "opacity-50" : ""}`}
         disabled={isVoiceChatLoading}
         type="single"
         value={isVoiceChatActive || isVoiceChatLoading ? "voice" : "text"}
@@ -37,21 +37,21 @@ export const AvatarControls: React.FC = () => {
         }}
       >
         <ToggleGroupItem
-          className="data-[state=on]:bg-zinc-800 rounded-lg p-2 text-sm w-[90px] text-center"
+          className="rounded-lg px-3 py-2 text-sm w-[110px] text-center data-[state=on]:bg-gradient-to-r data-[state=on]:from-[hsl(var(--primary))] data-[state=on]:to-[hsl(var(--primary-2))] data-[state=on]:text-white"
           value="voice"
         >
           Voice Chat
         </ToggleGroupItem>
         <ToggleGroupItem
-          className="data-[state=on]:bg-zinc-800 rounded-lg p-2 text-sm w-[90px] text-center"
+          className="rounded-lg px-3 py-2 text-sm w-[110px] text-center data-[state=on]:bg-zinc-800"
           value="text"
         >
           Text Chat
         </ToggleGroupItem>
       </ToggleGroup>
-      {isVoiceChatActive || isVoiceChatLoading ? <AudioInput /> : <TextInput />}
-      <div className="absolute top-[-70px] right-3">
-        <Button className="!bg-zinc-700 !text-white" onClick={interrupt}>
+      {isVoiceChatActive || isVoiceChatLoading ? <AudioInput /> : <TextInput roomRef={roomRef} />}
+      <div className="absolute -top-16 right-3">
+        <Button className="!bg-zinc-800 !text-white border border-white/10" onClick={interrupt}>
           Interrupt
         </Button>
       </div>

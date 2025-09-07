@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run dev:*)",
+      "Bash(curl:*)",
+      "Bash(echo:*)",
+      "Bash(pip3 list:*)",
+      "Bash(npm run:*)",
+      "Bash(pip3 install:*)",
+      "Bash(python3:*)",
+      "Bash(source .env)",
+      "Bash(export LIVEKIT_API_KEY=\"APIgXQJQgeVMcoT\")",
+      "Bash(export LIVEKIT_API_SECRET=\"n8CvbSn47kmVFJLhfBOffejkfC3DqVfcvPuONz3idmoN\")",
+      "Bash(export LIVEKIT_URL=\"wss://streamavatar-wpfgdha7.livekit.cloud\")",
+      "Bash(export BEY_API_KEY=\"sk-7v1h3Hho39SaD5Z6puuSAbO9-1Xlh2W0gX2iGjRdt9k\")",
+      "Bash(export BP_AVATAR_ID=\"b5bebaf9-ae80-4e43-b97f-4506136ed926\")",
+      "Bash(export OPENAI_VOICE=\"marin\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

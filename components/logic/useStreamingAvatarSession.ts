@@ -1,9 +1,5 @@
-import StreamingAvatar, {
-  ConnectionQuality,
-  StartAvatarRequest,
-  StreamingEvents,
-} from "@heygen/streaming-avatar";
-import { useCallback } from "react";
+import { createClient, AnamEvent, MessageRole } from "@anam-ai/js-sdk";
+import React, { useCallback } from "react";
 
 import {
   StreamingAvatarSessionState,
@@ -20,6 +16,7 @@ export const useStreamingAvatarSession = () => {
     setSessionState,
     stream,
     setStream,
+    setMicStream,
     setIsListening,
     setIsUserTalking,
     setIsAvatarTalking,
@@ -28,41 +25,48 @@ export const useStreamingAvatarSession = () => {
     handleStreamingTalkingMessage,
     handleEndMessage,
     clearMessages,
+    isVoiceChatActive,
+    suppressNextUserMessage,
+    setSuppressNextUserMessage,
   } = useStreamingAvatarContext();
   const { stopVoiceChat } = useVoiceChat();
+  const dropRemainingRef = React.useRef<number>(0);
 
   useMessageHistory();
 
   const init = useCallback(
     (token: string) => {
-      avatarRef.current = new StreamingAvatar({
-        token,
-        basePath: basePath,
-      });
-
+      console.log("Anam: Initializing client with token");
+      // Anam SDK: create client from session token
+      avatarRef.current = createClient(token);
+      console.log("Anam: Client created:", avatarRef.current);
       return avatarRef.current;
     },
-    [basePath, avatarRef],
+    [avatarRef],
   );
 
   const handleStream = useCallback(
-    ({ detail }: { detail: MediaStream }) => {
-      setStream(detail);
+    (videoStream: MediaStream) => {
+      setStream(videoStream);
       setSessionState(StreamingAvatarSessionState.CONNECTED);
     },
     [setSessionState, setStream],
   );
 
   const stop = useCallback(async () => {
-    avatarRef.current?.off(StreamingEvents.STREAM_READY, handleStream);
-    avatarRef.current?.off(StreamingEvents.STREAM_DISCONNECTED, stop);
+    try {
+      // Anam SDK: remove listeners if present
+      avatarRef.current?.removeListener(AnamEvent.VIDEO_STREAM_STARTED, handleStream as any);
+    } catch {}
     clearMessages();
     stopVoiceChat();
     setIsListening(false);
     setIsUserTalking(false);
     setIsAvatarTalking(false);
     setStream(null);
-    await avatarRef.current?.stopAvatar();
+    try {
+      await avatarRef.current?.stopStreaming?.();
+    } catch {}
     setSessionState(StreamingAvatarSessionState.INACTIVE);
   }, [
     handleStream,
@@ -77,7 +81,7 @@ export const useStreamingAvatarSession = () => {
   ]);
 
   const start = useCallback(
-    async (config: StartAvatarRequest, token?: string) => {
+    async (config: any, token?: string) => {
       if (sessionState !== StreamingAvatarSessionState.INACTIVE) {
         throw new Error("There is already an active session");
       }
@@ -94,42 +98,78 @@ export const useStreamingAvatarSession = () => {
       }
 
       setSessionState(StreamingAvatarSessionState.CONNECTING);
-      avatarRef.current.on(StreamingEvents.STREAM_READY, handleStream);
-      avatarRef.current.on(StreamingEvents.STREAM_DISCONNECTED, stop);
-      avatarRef.current.on(
-        StreamingEvents.CONNECTION_QUALITY_CHANGED,
-        ({ detail }: { detail: ConnectionQuality }) =>
-          setConnectionQuality(detail),
-      );
-      avatarRef.current.on(StreamingEvents.USER_START, () => {
-        setIsUserTalking(true);
+      // Anam SDK listeners
+      avatarRef.current.addListener(AnamEvent.CONNECTION_ESTABLISHED, () => {
+        console.log("Anam: Connection established");
       });
-      avatarRef.current.on(StreamingEvents.USER_STOP, () => {
-        setIsUserTalking(false);
+      avatarRef.current.addListener(AnamEvent.CONNECTION_CLOSED, () => {
+        console.log("Anam: Connection closed");
+        stop();
       });
-      avatarRef.current.on(StreamingEvents.AVATAR_START_TALKING, () => {
-        setIsAvatarTalking(true);
+      avatarRef.current.addListener(AnamEvent.VIDEO_STREAM_STARTED, (video: MediaStream) => {
+        console.log("Anam: Video stream started", video);
+        handleStream(video);
       });
-      avatarRef.current.on(StreamingEvents.AVATAR_STOP_TALKING, () => {
-        setIsAvatarTalking(false);
+      avatarRef.current.addListener(AnamEvent.MESSAGE_STREAM_EVENT_RECEIVED, (evt: any) => {
+        const role: MessageRole = evt.role;
+        const payload = { detail: { message: evt.content } } as any;
+        if (role === MessageRole.USER) {
+          return handleUserTalkingMessage(payload);
+        } else {
+          return handleStreamingTalkingMessage(payload);
+        }
+        // end-of-speech handling
+        // When endOfSpeech is true, mark message as finished
+        // and reset any suppression flags
       });
-      avatarRef.current.on(
-        StreamingEvents.USER_TALKING_MESSAGE,
-        handleUserTalkingMessage,
-      );
-      avatarRef.current.on(
-        StreamingEvents.AVATAR_TALKING_MESSAGE,
-        handleStreamingTalkingMessage,
-      );
-      avatarRef.current.on(StreamingEvents.USER_END_MESSAGE, handleEndMessage);
-      avatarRef.current.on(
-        StreamingEvents.AVATAR_END_MESSAGE,
-        handleEndMessage,
-      );
+      avatarRef.current.addListener(AnamEvent.MESSAGE_STREAM_EVENT_RECEIVED, (evt: any) => {
+        if (evt?.endOfSpeech) {
+          handleEndMessage();
+        }
+      });
+      avatarRef.current.addListener(AnamEvent.SERVER_WARNING, (warning: any) => {
+        console.warn("Anam server warning:", warning);
+      });
 
-      await avatarRef.current.createStartAvatar(config);
+      // Add error listener
+      if (avatarRef.current.addListener) {
+        avatarRef.current.addListener('error', (error: any) => {
+          console.error("Anam SDK error:", error);
+        });
+      }
 
-      return avatarRef.current;
+      // Capture microphone (always), then mute/unmute based on voice chat toggle
+      const mic = await navigator.mediaDevices
+        .getUserMedia({ audio: true })
+        .catch(() => undefined);
+      if (setMicStream) setMicStream(mic || null);
+
+      try {
+        // Start streaming. Returns [videoStream, audioStream?]
+        console.log("Anam: Attempting streamToVideoElement");
+        await avatarRef.current.streamToVideoElement?.("anam-video", mic);
+        console.log("Anam: streamToVideoElement successful");
+      } catch (error) {
+        console.log("Anam: streamToVideoElement failed, trying fallback:", error);
+        // Fallback: get streams directly then attach in UI via context
+        try {
+          const streams: MediaStream[] = (await avatarRef.current.stream(mic)) || [];
+          console.log("Anam: Direct stream call returned:", streams);
+          if (streams[0]) handleStream(streams[0]);
+        } catch (fallbackError) {
+          console.error("Anam: Both streaming methods failed:", fallbackError);
+          throw fallbackError;
+        }
+      }
+
+      // Apply initial mute state: if voice chat is not active, mute input
+      if (!isVoiceChatActive) {
+        try { avatarRef.current.muteInputAudio(); } catch {}
+      } else {
+        try { avatarRef.current.unmuteInputAudio(); } catch {}
+      }
+
+      return avatarRef.current as any;
     },
     [
       init,
@@ -138,12 +178,11 @@ export const useStreamingAvatarSession = () => {
       setSessionState,
       avatarRef,
       sessionState,
-      setConnectionQuality,
-      setIsUserTalking,
       handleUserTalkingMessage,
       handleStreamingTalkingMessage,
       handleEndMessage,
-      setIsAvatarTalking,
+      isVoiceChatActive,
+      setMicStream,
     ],
   );
 

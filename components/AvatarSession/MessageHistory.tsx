@@ -17,21 +17,27 @@ export const MessageHistory: React.FC = () => {
   return (
     <div
       ref={containerRef}
-      className="w-[600px] overflow-y-auto flex flex-col gap-2 px-2 py-2 text-white self-center max-h-[150px]"
+      className="h-full overflow-y-auto flex flex-col gap-3 px-1 py-1 text-white"
     >
       {messages.map((message) => (
         <div
           key={message.id}
-          className={`flex flex-col gap-1 max-w-[350px] ${
+          className={`flex flex-col gap-1 max-w-[85%] ${
             message.sender === MessageSender.CLIENT
               ? "self-end items-end"
               : "self-start items-start"
           }`}
         >
-          <p className="text-xs text-zinc-400">
+          <p className="text-[10px] uppercase tracking-wide text-zinc-400">
             {message.sender === MessageSender.AVATAR ? "Avatar" : "You"}
           </p>
-          <p className="text-sm">{message.content}</p>
+          <div className={`rounded-xl px-3 py-2 text-sm border ${
+            message.sender === MessageSender.CLIENT
+              ? "bg-gradient-to-r from-[hsl(var(--primary)/0.2)] to-[hsl(var(--primary-2)/0.2)] border-white/10"
+              : "glass border-white/10"
+          }`}>
+            {message.content}
+          </div>
         </div>
       ))}
     </div>

@@ -1,59 +1,24 @@
 "use client";
 
-import Link from "next/link";
-
-import { GithubIcon, HeyGenLogo } from "./Icons";
-
 export default function NavBar() {
+  const status = { label: "Studio", color: "bg-zinc-700 text-zinc-300" };
+
   return (
-    <>
-      <div className="flex flex-row justify-between items-center w-[1000px] m-auto p-6">
-        <div className="flex flex-row items-center gap-4">
-          <Link href="https://app.heygen.com/" target="_blank">
-            <HeyGenLogo />
-          </Link>
-          <div className="bg-gradient-to-br from-sky-300 to-indigo-500 bg-clip-text">
-            <p className="text-xl font-semibold text-transparent">
-              HeyGen Interactive Avatar SDK NextJS Demo
-            </p>
+    <div className="w-full flex items-center justify-center">
+      <div className="w-full max-w-[1200px] px-6 py-5 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-8 rounded-md glow-ring" aria-hidden />
+          <div className="bg-clip-text text-transparent bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--primary-2))]">
+            <p className="text-lg font-semibold">Studio Stream</p>
           </div>
         </div>
-        <div className="flex flex-row items-center gap-6">
-          <Link
-            href="https://labs.heygen.com/interactive-avatar"
-            target="_blank"
-          >
-            Avatars
-          </Link>
-          <Link
-            href="https://docs.heygen.com/reference/list-voices-v2"
-            target="_blank"
-          >
-            Voices
-          </Link>
-          <Link
-            href="https://docs.heygen.com/reference/new-session-copy"
-            target="_blank"
-          >
-            API Docs
-          </Link>
-          <Link
-            href="https://help.heygen.com/en/articles/9182113-interactive-avatar-101-your-ultimate-guide"
-            target="_blank"
-          >
-            Guide
-          </Link>
-          <Link
-            aria-label="Github"
-            className="flex flex-row justify-center gap-1 text-foreground"
-            href="https://github.com/HeyGen-Official/StreamingAvatarSDK"
-            target="_blank"
-          >
-            <GithubIcon className="text-default-500" />
-            SDK
-          </Link>
+        <div className={`glass rounded-full px-3 py-1 text-xs ${status.color} border border-white/5`}>
+          <span className="inline-flex items-center gap-2">
+            <span className={`h-2 w-2 rounded-full ${status.label === "Live" ? "bg-green-400 pulse" : status.label === "Connecting" ? "bg-yellow-300 animate-pulse" : "bg-zinc-400"}`} />
+            {status.label}
+          </span>
         </div>
       </div>
-    </>
+    </div>
   );
 }

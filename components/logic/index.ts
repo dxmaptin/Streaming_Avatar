@@ -7,4 +7,5 @@ export {
   StreamingAvatarSessionState,
   StreamingAvatarProvider,
   MessageSender,
+  ConnectionQuality,
 } from "./context";

@@ -1,7 +1,3 @@
-export function HeyGenLogo() {
-  return <img alt="HeyGen Logo" className="h-8" src="/heygen-logo.png" />;
-}
-
 type IconSvgProps = {
   size?: number;
   width?: number;

@@ -1,165 +1,158 @@
-import {
-  AvatarQuality,
-  StreamingEvents,
-  VoiceChatTransport,
-  VoiceEmotion,
-  StartAvatarRequest,
-  STTProvider,
-  ElevenLabsModel,
-} from "@heygen/streaming-avatar";
+"use client";
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useMemoizedFn, useUnmount } from "ahooks";
 
 import { Button } from "./Button";
 import { AvatarConfig } from "./AvatarConfig";
 import { AvatarVideo } from "./AvatarSession/AvatarVideo";
-import { useStreamingAvatarSession } from "./logic/useStreamingAvatarSession";
 import { AvatarControls } from "./AvatarSession/AvatarControls";
-import { useVoiceChat } from "./logic/useVoiceChat";
-import { StreamingAvatarProvider, StreamingAvatarSessionState } from "./logic";
 import { LoadingIcon } from "./Icons";
-import { MessageHistory } from "./AvatarSession/MessageHistory";
+import { DEFAULT_AVATAR_ID } from "@/app/lib/presets";
+import { GiftOverlay } from "./gifting/GiftOverlay";
+import { useLiveKitBeyViewer } from "./logic/useLiveKitBeyViewer";
 
-import { AVATARS } from "@/app/lib/constants";
-
-const DEFAULT_CONFIG: StartAvatarRequest = {
-  quality: AvatarQuality.Low,
-  avatarName: AVATARS[0].avatar_id,
-  knowledgeId: undefined,
-  voice: {
-    rate: 1.5,
-    emotion: VoiceEmotion.EXCITED,
-    model: ElevenLabsModel.eleven_flash_v2_5,
-  },
-  language: "en",
-  voiceChatTransport: VoiceChatTransport.WEBSOCKET,
-  sttSettings: {
-    provider: STTProvider.DEEPGRAM,
-  },
+// Minimal config shape we care about for Anam
+type MinimalConfig = {
+  avatarName: string;
+  voice?: { voiceId?: string };
+  language?: string;
+  knowledgeId?: string;
 };
 
-function InteractiveAvatar() {
-  const { initAvatar, startAvatar, stopAvatar, sessionState, stream } =
-    useStreamingAvatarSession();
-  const { startVoiceChat } = useVoiceChat();
+const DEFAULT_CONFIG: MinimalConfig = {
+  avatarName: "",
+  voice: { voiceId: undefined },
+  language: "en",
+};
 
-  const [config, setConfig] = useState<StartAvatarRequest>(DEFAULT_CONFIG);
+export function InteractiveAvatar() {
+  // Use Beyond Presence, initiated from LiveKit
+  const { isConnecting, isConnected, error: integrationError, videoStream, start, stop, roomRef } = useLiveKitBeyViewer();
+  
+  const searchParams = useSearchParams();
+  const [config, setConfig] = useState<MinimalConfig>({
+    ...DEFAULT_CONFIG,
+    avatarName: DEFAULT_AVATAR_ID || DEFAULT_CONFIG.avatarName,
+  });
+  const [showConfig, setShowConfig] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [videoStreamLocal, setVideoStreamLocal] = useState<MediaStream | null>(null);
 
   const mediaStream = useRef<HTMLVideoElement>(null);
 
-  async function fetchAccessToken() {
-    try {
-      const response = await fetch("/api/get-access-token", {
-        method: "POST",
-      });
-      const token = await response.text();
-
-      console.log("Access Token:", token); // Log the token to verify
-
-      return token;
-    } catch (error) {
-      console.error("Error fetching access token:", error);
-      throw error;
+  // Apply query param overrides for avatar/voice once
+  useEffect(() => {
+    const avatarId = searchParams?.get("avatarId");
+    const voiceId = searchParams?.get("voiceId");
+    if (avatarId || voiceId) {
+      setConfig((prev) => ({
+        ...prev,
+        avatarName: avatarId || prev.avatarName,
+        voice: { ...(prev.voice || {}), voiceId: voiceId || prev.voice?.voiceId },
+      }));
     }
-  }
+  }, [searchParams]);
 
-  const startSessionV2 = useMemoizedFn(async (isVoiceChat: boolean) => {
+  const startSession = useMemoizedFn(async (_isVoiceChat: boolean) => {
     try {
-      const newToken = await fetchAccessToken();
-      const avatar = initAvatar(newToken);
-
-      avatar.on(StreamingEvents.AVATAR_START_TALKING, (e) => {
-        console.log("Avatar started talking", e);
-      });
-      avatar.on(StreamingEvents.AVATAR_STOP_TALKING, (e) => {
-        console.log("Avatar stopped talking", e);
-      });
-      avatar.on(StreamingEvents.STREAM_DISCONNECTED, () => {
-        console.log("Stream disconnected");
-      });
-      avatar.on(StreamingEvents.STREAM_READY, (event) => {
-        console.log(">>>>> Stream ready:", event.detail);
-      });
-      avatar.on(StreamingEvents.USER_START, (event) => {
-        console.log(">>>>> User started talking:", event);
-      });
-      avatar.on(StreamingEvents.USER_STOP, (event) => {
-        console.log(">>>>> User stopped talking:", event);
-      });
-      avatar.on(StreamingEvents.USER_END_MESSAGE, (event) => {
-        console.log(">>>>> User end message:", event);
-      });
-      avatar.on(StreamingEvents.USER_TALKING_MESSAGE, (event) => {
-        console.log(">>>>> User talking message:", event);
-      });
-      avatar.on(StreamingEvents.AVATAR_TALKING_MESSAGE, (event) => {
-        console.log(">>>>> Avatar talking message:", event);
-      });
-      avatar.on(StreamingEvents.AVATAR_END_MESSAGE, (event) => {
-        console.log(">>>>> Avatar end message:", event);
-      });
-
-      await startAvatar(config);
-
-      if (isVoiceChat) {
-        await startVoiceChat();
-      }
-    } catch (error) {
+      setError(null);
+      // Start LiveKit + dispatch agent
+      await start({ roomName: `avatar-${Date.now()}` });
+      console.log("Session started; waiting for remote media...");
+    } catch (error: any) {
       console.error("Error starting avatar session:", error);
+      const msg = error?.message || String(error) || "Unknown error";
+      setError(`Failed to start stream: ${msg}`);
+    }
+  });
+
+  const stopSession = useMemoizedFn(async () => {
+    try {
+      await stop();
+      setVideoStreamLocal(null);
+    } catch (error) {
+      console.error("Error stopping session:", error);
     }
   });
 
   useUnmount(() => {
-    stopAvatar();
+    stopSession();
   });
 
   useEffect(() => {
-    if (stream && mediaStream.current) {
-      mediaStream.current.srcObject = stream;
+    const vs = videoStream || videoStreamLocal;
+    if (vs && mediaStream.current) {
+      mediaStream.current.srcObject = vs;
       mediaStream.current.onloadedmetadata = () => {
         mediaStream.current!.play();
       };
     }
-  }, [mediaStream, stream]);
+  }, [mediaStream, videoStream, videoStreamLocal]);
+
+  // Determine session state for UI
+  const sessionState = isConnecting ? "CONNECTING" : (isConnected ? "CONNECTED" : "INACTIVE");
 
   return (
-    <div className="w-full flex flex-col gap-4">
-      <div className="flex flex-col rounded-xl bg-zinc-900 overflow-hidden">
-        <div className="relative w-full aspect-video overflow-hidden flex flex-col items-center justify-center">
-          {sessionState !== StreamingAvatarSessionState.INACTIVE ? (
-            <AvatarVideo ref={mediaStream} />
+    <div className="w-full flex flex-col gap-3">
+      <div className="flex flex-col rounded-2xl glass glow-ring overflow-hidden border border-white/10">
+        <div className="relative w-full min-h-[64vh] md:min-h-[74vh] overflow-hidden flex items-center justify-center bg-black/40">
+          {sessionState !== "INACTIVE" ? (
+            <>
+              <div className="absolute inset-0 pointer-events-none opacity-10 bg-[radial-gradient(circle_at_25%_10%,_white_2px,transparent_2px)] bg-[length:24px_24px]" />
+              <AvatarVideo ref={mediaStream} isConnected={isConnected} onStop={stopSession} />
+              <GiftOverlay />
+            </>
           ) : (
-            <AvatarConfig config={config} onConfigChange={setConfig} />
+            <div className="w-full h-full flex items-center justify-center">
+              <div className="flex flex-col items-center gap-3">
+                <Button
+                  className="px-8 py-3 bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--primary-2))]"
+                  onClick={() => startSession(true)}
+                >
+                  Start Live Stream
+                </Button>
+                {(error || integrationError) && (
+                  <p className="text-xs text-red-400">{error || integrationError}</p>
+                )}
+                <button
+                  className="text-xs text-zinc-300 hover:text-white underline underline-offset-4"
+                  onClick={() => setShowConfig((v) => !v)}
+                >
+                  {showConfig ? "Hide Configuration" : "Configure"}
+                </button>
+              </div>
+            </div>
           )}
         </div>
-        <div className="flex flex-col gap-3 items-center justify-center p-4 border-t border-zinc-700 w-full">
-          {sessionState === StreamingAvatarSessionState.CONNECTED ? (
-            <AvatarControls />
-          ) : sessionState === StreamingAvatarSessionState.INACTIVE ? (
-            <div className="flex flex-row gap-4">
-              <Button onClick={() => startSessionV2(true)}>
-                Start Voice Chat
-              </Button>
-              <Button onClick={() => startSessionV2(false)}>
-                Start Text Chat
+        <div className="flex flex-col gap-3 items-center justify-center p-4 border-t border-white/10 w-full">
+          {sessionState === "CONNECTED" ? (
+            <div className="flex gap-2">
+              <AvatarControls roomRef={roomRef} />
+              <Button
+                className="px-4 py-2 bg-red-600/80"
+                onClick={stopSession}
+              >
+                Stop Stream
               </Button>
             </div>
+          ) : sessionState === "INACTIVE" ? (
+            showConfig ? (
+              <div className="w-full max-w-[700px]">
+                <AvatarConfig config={config} onConfigChange={setConfig} />
+              </div>
+            ) : (
+              <div className="text-xs text-zinc-400">Use Configure to adjust model, voice, and STT options.</div>
+            )
           ) : (
-            <LoadingIcon />
+            <LoadingIcon className="text-zinc-300" />
           )}
         </div>
       </div>
-      {sessionState === StreamingAvatarSessionState.CONNECTED && (
-        <MessageHistory />
-      )}
     </div>
   );
 }
 
 export default function InteractiveAvatarWrapper() {
-  return (
-    <StreamingAvatarProvider basePath={process.env.NEXT_PUBLIC_BASE_API_URL}>
-      <InteractiveAvatar />
-    </StreamingAvatarProvider>
-  );
+  return <InteractiveAvatar />;
 }
